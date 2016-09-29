@@ -324,6 +324,7 @@ class ExecutorContext {
 };
 
 class TempTableTupleDeleter {
+public:
     void operator()(TempTable* tbl) const;
 };
 
