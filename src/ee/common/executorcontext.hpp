@@ -323,7 +323,7 @@ class ExecutorContext {
     CatalogId m_drClusterId;
 };
 
-struct TempTableTupleDeleter {
+class TempTableTupleDeleter {
     void operator()(TempTable* tbl) const;
 };
 
