@@ -33,7 +33,9 @@ package org.hsqldb_voltpatches;
 
 import java.sql.Timestamp;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.hsqldb_voltpatches.types.Type;
 
@@ -48,6 +50,9 @@ import org.hsqldb_voltpatches.types.Type;
  */
 public class FunctionForVoltDB extends FunctionSQL {
 
+    private static final Set<Integer>       m_safeForNonemptyMV = new HashSet<>();
+    private static Map<Integer, String>     m_opStringByFunctionId
+                                                                = new HashMap<>();
     static class FunctionId {
         final private String m_name;
         final private int m_id;
@@ -81,11 +86,33 @@ public class FunctionForVoltDB extends FunctionSQL {
             return m_paramParseListAlt;
         }
 
-        private FunctionId(String name, Type type, int id, int typeParameter, Type[] paramTypes, short[] paramParseList) {
-            this(name, type, id, typeParameter, paramTypes, paramParseList, null);
+        private FunctionId(String  name,
+                            Type    type,
+                            int     id,
+                            int     typeParameter,
+                            Type[]   paramTypes,
+                            short[] paramParseList) {
+            this(name, type, id, typeParameter, paramTypes, paramParseList, null, false);
         }
 
-        private FunctionId(String name, Type type, int id, int typeParameter, Type[] paramTypes, short[] paramParseList, short[] paramParseListAlt) {
+        private FunctionId(String  name,
+                            Type    type,
+                            int     id,
+                            int     typeParameter,
+                            Type[]   paramTypes,
+                            short[] paramParseList,
+                            boolean isMVSafe) {
+            this(name, type, id, typeParameter, paramTypes, paramParseList, null, isMVSafe);
+        }
+
+        private FunctionId(String name,
+                            Type    type,
+                            int     id,
+                            int     typeParameter,
+                            Type[]   paramTypes,
+                            short[] paramParseList,
+                            short[] paramParseListAlt,
+                            boolean isMVSafe) {
             m_name = name;
             m_type = type;
             m_id = id;
@@ -93,18 +120,35 @@ public class FunctionForVoltDB extends FunctionSQL {
             m_paramTypes = paramTypes;
             m_paramParseList = paramParseList;
             m_paramParseListAlt = paramParseListAlt;
+            // If this is safe, then add it to the
+            // safe list.  If it is not safe, then
+            // add it to the names of unsafe functions.
+            if (isMVSafe) {
+                m_safeForNonemptyMV.add(m_id);
+            } else {
+                registerOpString(m_id, m_name);
+            }
         }
 
+        //
         // These ID numbers need to be unique values for FunctionSQL.functType.
         // Assume that 1-19999 are reserved for existing HSQL functions.
         // That leaves new VoltDB-specific functions free to use values in the 20000s.
-        static final int FUNC_CONCAT                     = 124;
+        //
+        // Note that the ID number FUNC_CONCAT leaks out from HSQLDB.  We
+        // need this to match the numeric value of this int in
+        // org.hsqldb_voltpatches;FunctionCustom.java.  This is used
+        // when resolving return types.
+        //
+        private static final int FUNC_CONCAT                 = 124;
 
-        private static final int FUNC_VOLT_SQL_ERROR     = 20000;
-        private static final int FUNC_VOLT_DECODE        = 20001;
-        private static final int FUNC_VOLT_FIELD         = 20002;
-        private static final int FUNC_VOLT_ARRAY_ELEMENT = 20003;
-        private static final int FUNC_VOLT_ARRAY_LENGTH  = 20004;
+        private final static int FUNC_VOLT_SUBSTRING_CHAR_FROM = 10000;
+
+        private static final int FUNC_VOLT_SQL_ERROR         = 20000;
+        private static final int FUNC_VOLT_DECODE            = 20001;
+        private static final int FUNC_VOLT_FIELD             = 20002;
+        private static final int FUNC_VOLT_ARRAY_ELEMENT     = 20003;
+        private static final int FUNC_VOLT_ARRAY_LENGTH      = 20004;
 
         static final int FUNC_VOLT_SINCE_EPOCH               = 20005;
         static final int FUNC_VOLT_SINCE_EPOCH_SECOND        = 20006;
@@ -181,7 +225,6 @@ public class FunctionForVoltDB extends FunctionSQL {
         static final int FUNC_VOLT_MAX_VALID_TIMESTAMP          = 21022;    // Maximum valid timestamp.
         static final int FUNC_VOLT_IS_VALID_TIMESTAMP           = 21023;    // Is a timestamp value in range?
 
-
         /*
          * Note: The name must be all lower case.
          */
@@ -206,7 +249,8 @@ public class FunctionForVoltDB extends FunctionSQL {
                     new Type[] { null, null },
                     new short[] { Tokens.OPENBRACKET, Tokens.QUESTION, Tokens.COMMA, Tokens.QUESTION,
                                   Tokens.X_REPEAT, 2, Tokens.COMMA, Tokens.QUESTION,
-                                  Tokens.CLOSEBRACKET }),
+                                  Tokens.CLOSEBRACKET },
+                    true),
 
             new FunctionId("field", Type.SQL_VARCHAR, FUNC_VOLT_FIELD, -1,
                     new Type[] { Type.SQL_VARCHAR, Type.SQL_VARCHAR },
@@ -282,11 +326,13 @@ public class FunctionForVoltDB extends FunctionSQL {
 
             new FunctionId("hex", Type.SQL_VARCHAR, FUNC_VOLT_HEX, -1,
                     new Type[] { Type.SQL_BIGINT },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("bin", Type.SQL_VARCHAR, FUNC_VOLT_BIN, -1,
                     new Type[] { Type.SQL_BIGINT },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("dateadd", Type.SQL_TIMESTAMP, FUNC_VOLT_DATEADD, -1,
                     new Type[] { Type.SQL_VARCHAR, Type.SQL_BIGINT, Type.SQL_TIMESTAMP },
@@ -313,48 +359,59 @@ public class FunctionForVoltDB extends FunctionSQL {
 
             new FunctionId("numinteriorring", Type.SQL_INTEGER, FUNC_VOLT_POLYGON_NUM_INTERIOR_RINGS, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
              // numinteriorrings is alias of numinteriorring
             new FunctionId("numinteriorrings", Type.SQL_INTEGER, FUNC_VOLT_POLYGON_NUM_INTERIOR_RINGS, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("numpoints", Type.SQL_INTEGER, FUNC_VOLT_POLYGON_NUM_POINTS, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("latitude", Type.SQL_DOUBLE, FUNC_VOLT_POINT_LATITUDE, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY_POINT },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("longitude", Type.SQL_DOUBLE, FUNC_VOLT_POINT_LONGITUDE, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY_POINT },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("centroid", Type.VOLT_GEOGRAPHY_POINT, FUNC_VOLT_POLYGON_CENTROID, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("area", Type.SQL_DOUBLE, FUNC_VOLT_POLYGON_AREA, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("distance", Type.SQL_DOUBLE, FUNC_VOLT_DISTANCE, -1,
                     new Type[] { Type.SQL_ALL_TYPES, Type.SQL_ALL_TYPES },
-                    doubleParamList),
+                    doubleParamList,
+                    true),
 
             new FunctionId("astext", Type.SQL_VARCHAR, FUNC_VOLT_ASTEXT, -1,
                     new Type[] { Type.SQL_ALL_TYPES },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("isvalid", Type.SQL_BOOLEAN, FUNC_VOLT_VALIDATE_POLYGON, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("isinvalidreason", Type.SQL_VARCHAR, FUNC_VOLT_POLYGON_INVALID_REASON, -1,
                     new Type[] { Type.VOLT_GEOGRAPHY },
-                    singleParamList),
+                    singleParamList,
+                    true),
 
             new FunctionId("dwithin", Type.SQL_BOOLEAN, FUNC_VOLT_DWITHIN, -1,
                     new Type[] { Type.SQL_ALL_TYPES, Type.SQL_ALL_TYPES, Type.SQL_DOUBLE },
@@ -370,22 +427,64 @@ public class FunctionForVoltDB extends FunctionSQL {
             new FunctionId("min_valid_timestamp", Type.SQL_TIMESTAMP, FUNC_VOLT_MIN_VALID_TIMESTAMP, -1,
                     new Type[] {},
                     emptyParamList,
-                    noParamList),
+                    noParamList,
+                    true),
             new FunctionId("max_valid_timestamp", Type.SQL_TIMESTAMP, FUNC_VOLT_MAX_VALID_TIMESTAMP, -1,
                     new Type[] {},
                     emptyParamList,
-                    noParamList),
+                    noParamList,
+                    true),
             new FunctionId("is_valid_timestamp", Type.SQL_BOOLEAN, FUNC_VOLT_IS_VALID_TIMESTAMP, -1,
                     new Type[] { Type.SQL_TIMESTAMP },
-                    singleParamList),
+                    singleParamList,
+                    null,
+                    true),
         };
 
-        private static Map<String, FunctionId> by_LC_name = new HashMap<String, FunctionId>();
+        private static Map<String,  FunctionId> by_LC_name = new HashMap<>();
 
         static {
             for (FunctionId fn : instances) {
                 by_LC_name.put(fn.m_name, fn);
             }
+
+            // These function ids are not actually in the table
+            // above.  They are the result of overloading in SQL.
+            // For example astext(p) is a geography or a point
+            // operation depending on whether p is a geography
+            // or a point.
+            m_safeForNonemptyMV.add(FUNC_VOLT_ASTEXT_GEOGRAPHY);
+            m_safeForNonemptyMV.add(FUNC_VOLT_ASTEXT_GEOGRAPHY_POINT);
+            m_safeForNonemptyMV.add(FUNC_VOLT_DISTANCE_POINT_POINT);
+            m_safeForNonemptyMV.add(FUNC_VOLT_DISTANCE_POLYGON_POINT);
+            m_safeForNonemptyMV.add(FUNC_VOLT_SINCE_EPOCH_MICROSECOND);
+            m_safeForNonemptyMV.add(FUNC_VOLT_SINCE_EPOCH_MILLISECOND);
+            m_safeForNonemptyMV.add(FUNC_VOLT_SINCE_EPOCH_SECOND);
+            // These function ids are not in the table either, and
+            // are added as a result of type overloading.  However,
+            // these are not safe for use in materialized views.
+            registerOpString(FUNC_VOLT_TO_TIMESTAMP_MICROSECOND,
+                             "TO TIMESTAMP MICROSECOND");
+            registerOpString(FUNC_VOLT_TO_TIMESTAMP_MILLISECOND,
+                             "TO TIMESTAMP MILLISECOND");
+            registerOpString(FUNC_VOLT_TO_TIMESTAMP_SECOND,
+                             "TO TIMESTAMP SECOND");
+            registerOpString(FUNC_VOLT_TRUNCATE_YEAR,
+                             "TRUNCATE YEAR");
+            registerOpString(FUNC_VOLT_TRUNCATE_MONTH,
+                             "TRUNCATE MONTH");
+            registerOpString(FUNC_VOLT_TRUNCATE_DAY,
+                             "TRUNCATE DAY");
+            registerOpString(FUNC_VOLT_TRUNCATE_HOUR,
+                             "TRUNCATE HOUR");
+            registerOpString(FUNC_VOLT_TRUNCATE_MINUTE,
+                             "TRUNCATE MINUTE");
+            registerOpString(FUNC_VOLT_TRUNCATE_SECOND,
+                             "TRUNCATE SECOND");
+            registerOpString(FUNC_VOLT_TRUNCATE_MILLISECOND,
+                             "TRUNCATE MILLISECOND");
+            registerOpString(FUNC_VOLT_TRUNCATE_MICROSECOND,
+                             "TRUNCATE MICROSECOND");
         }
 
         static FunctionId fn_by_name(String anyCase) {
@@ -397,6 +496,18 @@ public class FunctionForVoltDB extends FunctionSQL {
             return m_typeParameter;
         }
 
+        public static boolean isSafeForNonemptyMV(int functionId) {
+            return m_safeForNonemptyMV.contains(functionId)
+                    || FunctionCustom.isSafeForNonemptyMV(functionId);
+        }
+
+        public static String opString(int functionId) {
+            String opString = getOpStringsByFunctionID(functionId);
+            if (opString == null) {
+                opString = String.format("Operator%d", functionId);
+            }
+            return opString;
+        }
     }
 
     public static final int FUNC_VOLT_ID_FOR_CONTAINS = FunctionId.FUNC_VOLT_CONTAINS;
@@ -752,6 +863,10 @@ public class FunctionForVoltDB extends FunctionSQL {
         }
         sb.append(Tokens.T_CLOSEBRACKET);
         return sb.toString();
+    }
+
+    public static boolean isSafeForNonemptyMV(int functionId) {
+        return FunctionId.isSafeForNonemptyMV(functionId);
     }
 
 }

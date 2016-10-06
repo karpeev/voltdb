@@ -52,55 +52,93 @@ import org.hsqldb_voltpatches.types.Type;
  * @since 1.9.0
  */
 public class FunctionSQL extends Expression {
-
-    private final static int   FUNC_POSITION_CHAR                    = 1;     // numeric
-    private final static int   FUNC_POSITION_BINARY                  = 2;
-    private final static int   FUNC_OCCURENCES_REGEX                 = 3;
-    private final static int   FUNC_POSITION_REGEX                   = 4;
+    protected final static int FUNC_POSITION_CHAR                    = 1;     // numeric
+    protected final static int FUNC_POSITION_BINARY                  = 2;
+    protected final static int FUNC_OCCURENCES_REGEX                 = 3;
+    protected final static int FUNC_POSITION_REGEX                   = 4;
     protected final static int FUNC_EXTRACT                          = 5;
     protected final static int FUNC_BIT_LENGTH                       = 6;
     protected final static int FUNC_CHAR_LENGTH                      = 7;
     protected final static int FUNC_OCTET_LENGTH                     = 8;
-    private final static int   FUNC_CARDINALITY                      = 9;
-    private final static int   FUNC_ABS                              = 10;
-    private final static int   FUNC_MOD                              = 11;
+    protected final static int FUNC_CARDINALITY                      = 9;
+    protected final static int FUNC_ABS                              = 10;
+    protected final static int FUNC_MOD                              = 11;
     protected final static int FUNC_LN                               = 12;
-    private final static int   FUNC_EXP                              = 13;
-    private final static int   FUNC_POWER                            = 14;
-    private final static int   FUNC_SQRT                             = 15;
-    private final static int   FUNC_FLOOR                            = 16;
-    private final static int   FUNC_CEILING                          = 17;
-    private final static int   FUNC_WIDTH_BUCKET                     = 20;
+    protected final static int FUNC_EXP                              = 13;
+    protected final static int FUNC_POWER                            = 14;
+    protected final static int FUNC_SQRT                             = 15;
+    protected final static int FUNC_FLOOR                            = 16;
+    protected final static int FUNC_CEILING                          = 17;
+    protected final static int FUNC_WIDTH_BUCKET                     = 20;
     protected final static int FUNC_SUBSTRING_CHAR                   = 21;    // string
-    private final static int   FUNC_SUBSTRING_REG_EXPR               = 22;
-    private final static int   FUNC_SUBSTRING_REGEX                  = 23;
+    protected final static int FUNC_SUBSTRING_REG_EXPR               = 22;
+    protected final static int FUNC_SUBSTRING_REGEX                  = 23;
     protected final static int FUNC_FOLD_LOWER                       = 24;
     protected final static int FUNC_FOLD_UPPER                       = 25;
-    private final static int   FUNC_TRANSCODING                      = 26;
-    private final static int   FUNC_TRANSLITERATION                  = 27;
-    private final static int   FUNC_REGEX_TRANSLITERATION            = 28;
+    protected final static int FUNC_TRANSCODING                      = 26;
+    protected final static int FUNC_TRANSLITERATION                  = 27;
+    protected final static int FUNC_REGEX_TRANSLITERATION            = 28;
     protected final static int FUNC_TRIM_CHAR                        = 29;
-    final static int           FUNC_OVERLAY_CHAR                     = 30;
-    private final static int   FUNC_CHAR_NORMALIZE                   = 31;
-    private final static int   FUNC_SUBSTRING_BINARY                 = 32;
-    private final static int   FUNC_TRIM_BINARY                      = 33;
-    private final static int   FUNC_OVERLAY_BINARY                   = 40;
+    protected final static int FUNC_OVERLAY_CHAR                     = 30;
+    protected final static int FUNC_CHAR_NORMALIZE                   = 31;
+    protected final static int FUNC_SUBSTRING_BINARY                 = 32;
+    protected final static int FUNC_TRIM_BINARY                      = 33;
+    protected final static int FUNC_OVERLAY_BINARY                   = 40;
     protected final static int FUNC_CURRENT_DATE                     = 41;    // datetime
     protected final static int FUNC_CURRENT_TIME                     = 42;
     protected final static int FUNC_CURRENT_TIMESTAMP                = 43;
     protected final static int FUNC_LOCALTIME                        = 44;
-    private final static int   FUNC_LOCALTIMESTAMP                   = 50;
-    private final static int   FUNC_CURRENT_CATALOG                  = 51;    // general
-    private final static int   FUNC_CURRENT_DEFAULT_TRANSFORM_GROUP  = 52;
-    private final static int   FUNC_CURRENT_PATH                     = 53;
-    private final static int   FUNC_CURRENT_ROLE                     = 54;
-    private final static int   FUNC_CURRENT_SCHEMA                   = 55;
-    private final static int   FUNC_CURRENT_TRANSFORM_GROUP_FOR_TYPE = 56;
-    private final static int   FUNC_CURRENT_USER                     = 57;
-    private final static int   FUNC_SESSION_USER                     = 58;
-    private final static int   FUNC_SYSTEM_USER                      = 59;
+    protected final static int FUNC_LOCALTIMESTAMP                   = 50;
+    protected final static int FUNC_CURRENT_CATALOG                  = 51;    // general
+    protected final static int FUNC_CURRENT_DEFAULT_TRANSFORM_GROUP  = 52;
+    protected final static int FUNC_CURRENT_PATH                     = 53;
+    protected final static int FUNC_CURRENT_ROLE                     = 54;
+    protected final static int FUNC_CURRENT_SCHEMA                   = 55;
+    protected final static int FUNC_CURRENT_TRANSFORM_GROUP_FOR_TYPE = 56;
+    protected final static int FUNC_CURRENT_USER                     = 57;
+    protected final static int FUNC_SESSION_USER                     = 58;
+    protected final static int FUNC_SYSTEM_USER                      = 59;
     protected final static int FUNC_USER                             = 60;
-    private final static int   FUNC_VALUE                            = 61;
+    protected final static int FUNC_VALUE                            = 61;
+
+    private static final java.util.Map<Integer, String> m_opStringByFunctionId = new java.util.HashMap<>();
+    private static final java.util.Set<Integer>         m_isSafeForNonemptyMV  = new java.util.HashSet<>();
+    /**
+     * Register a name and a function id, and record if the
+     * function id is safe to be used in expressions when creating
+     * materialized views on non-empty tables.. This could be
+     * generalized.to include similar static data in FunctionSQL,
+     * FunctionForVolt and FunctionCustom.
+     *
+     * @param name  The function's name.
+     * @param functionId  The function's id number.
+     * @param isMVSafe  True iff the function is safe for non-empty MV source tables.
+     */
+    protected static final void registerFunctionId(String  name,
+                                                   Integer functionId,
+                                                   boolean isMVSafe) {
+        m_opStringByFunctionId.put(functionId, name);
+        if (isMVSafe) {
+            m_isSafeForNonemptyMV.add(functionId);
+        }
+    }
+
+    protected static final void registerFunctionId(String  name,
+                                                   Integer functionId) {
+        registerFunctionId(name, functionId, false);
+    }
+
+    protected static final String opStringForFunctionId(int functionId) {
+        String answer = m_opStringByFunctionId.get(functionId);
+        if (answer == null) {
+            answer = String.format("Operator%d", functionId);
+        }
+        return answer;
+    }
+
+    protected static final boolean isSafeForNonemptyMV(int functionId) {
+        return m_isSafeForNonemptyMV.contains(functionId);
+    }
 
     //
     static final short[] noParamList              = new short[]{};
@@ -160,13 +198,17 @@ public class FunctionSQL extends Expression {
         regularFuncMap.put(Tokens.T_CEIL, FUNC_CEILING);
         regularFuncMap.put(Tokens.T_WIDTH_BUCKET, FUNC_WIDTH_BUCKET);
         regularFuncMap.put(Tokens.T_SUBSTRING, FUNC_SUBSTRING_CHAR);
+        registerFunctionId("SUBSTRING",        FUNC_SUBSTRING_CHAR);
+        registerFunctionId("SUBSTRING",        FUNC_SUBSTRING_REG_EXPR);
         /*
         regularFuncMap.put(Token.T_SUBSTRING_REG_EXPR,
                            FUNC_SUBSTRING_REG_EXPR);
         */
         regularFuncMap.put(Tokens.T_SUBSTRING_REGEX, FUNC_SUBSTRING_REGEX);
         regularFuncMap.put(Tokens.T_LOWER, FUNC_FOLD_LOWER);
+        registerFunctionId("FOLD_LOWER",                       FUNC_FOLD_LOWER, true);
         regularFuncMap.put(Tokens.T_UPPER, FUNC_FOLD_UPPER);
+        registerFunctionId("FOLD_UPPER",                       FUNC_FOLD_UPPER, true);
         /*
         regularFuncMap.put(Token.T_TRANSCODING, FUNC_TRANSCODING);
         regularFuncMap.put(Token.T_TRANSLITERATION, FUNC_TRANSLITERATION);
@@ -179,6 +221,55 @@ public class FunctionSQL extends Expression {
         regularFuncMap.put(Token.T_NORMALIZE, FUNC_CHAR_NORMALIZE);
         */
         regularFuncMap.put(Tokens.T_TRIM, FUNC_TRIM_BINARY);
+
+        /*
+         * Register function ids with names.
+         */
+        registerFunctionId(Tokens.T_POSITION,                        FUNC_POSITION_BINARY);
+        registerFunctionId(Tokens.T_POSITION,                        FUNC_POSITION_CHAR);
+        /*
+        registerFunctionId(Token.T_OCCURENCES_REGEX, FUNC_OCCURENCES_REGEX);
+        */
+        registerFunctionId(Tokens.T_POSITION_REGEX, FUNC_POSITION_REGEX);
+        registerFunctionId(Tokens.T_EXTRACT, FUNC_EXTRACT);
+        registerFunctionId(Tokens.T_BIT_LENGTH, FUNC_BIT_LENGTH);
+        registerFunctionId(Tokens.T_CHAR_LENGTH, FUNC_CHAR_LENGTH);
+        registerFunctionId(Tokens.T_CHARACTER_LENGTH, FUNC_CHAR_LENGTH);
+        registerFunctionId(Tokens.T_OCTET_LENGTH, FUNC_OCTET_LENGTH);
+        /*
+        registerFunctionId(Token.T_CARDINALITY, FUNC_CARDINALITY);
+        */
+        registerFunctionId(Tokens.T_ABS, FUNC_ABS);
+        registerFunctionId(Tokens.T_MOD, FUNC_MOD);
+        registerFunctionId(Tokens.T_LN, FUNC_LN);
+        registerFunctionId(Tokens.T_EXP, FUNC_EXP);
+        registerFunctionId(Tokens.T_POWER, FUNC_POWER);
+        registerFunctionId(Tokens.T_SQRT, FUNC_SQRT);
+        registerFunctionId(Tokens.T_FLOOR, FUNC_FLOOR);
+        registerFunctionId(Tokens.T_CEILING, FUNC_CEILING);
+        registerFunctionId(Tokens.T_CEIL, FUNC_CEILING);
+        registerFunctionId(Tokens.T_WIDTH_BUCKET, FUNC_WIDTH_BUCKET);
+        registerFunctionId(Tokens.T_SUBSTRING, FUNC_SUBSTRING_CHAR);
+        /*
+        registerFunctionId(Token.T_SUBSTRING_REG_EXPR,
+                           FUNC_SUBSTRING_REG_EXPR);
+        */
+        registerFunctionId(Tokens.T_SUBSTRING_REGEX, FUNC_SUBSTRING_REGEX);
+        registerFunctionId(Tokens.T_LOWER, FUNC_FOLD_LOWER);
+        registerFunctionId(Tokens.T_UPPER, FUNC_FOLD_UPPER);
+        /*
+        registerFunctionId(Token.T_TRANSCODING, FUNC_TRANSCODING);
+        registerFunctionId(Token.T_TRANSLITERATION, FUNC_TRANSLITERATION);
+        registerFunctionId(Token.T_TRASLATION,
+                           FUNC_REGEX_TRANSLITERATION);
+        */
+        registerFunctionId(Tokens.T_TRIM, FUNC_TRIM_CHAR);
+        registerFunctionId(Tokens.T_OVERLAY, FUNC_OVERLAY_CHAR);
+        /*
+        registerFunctionId(Token.T_NORMALIZE, FUNC_CHAR_NORMALIZE);
+        */
+        registerFunctionId(Tokens.T_TRIM, FUNC_TRIM_BINARY);
+
     }
 
     static {
@@ -204,6 +295,28 @@ public class FunctionSQL extends Expression {
         valueFuncMap.put(Tokens.T_SYSTEM_USER, FUNC_SYSTEM_USER);
         valueFuncMap.put(Tokens.T_USER, FUNC_USER);
         valueFuncMap.put(Tokens.T_VALUE, FUNC_VALUE);
+        registerFunctionId(Tokens.T_CURRENT_DATE, FUNC_CURRENT_DATE);
+        registerFunctionId(Tokens.T_CURRENT_TIME, FUNC_CURRENT_TIME);
+        registerFunctionId(Tokens.T_CURRENT_TIMESTAMP, FUNC_CURRENT_TIMESTAMP);
+        registerFunctionId(Tokens.T_LOCALTIME, FUNC_LOCALTIME);
+        registerFunctionId(Tokens.T_LOCALTIMESTAMP, FUNC_LOCALTIMESTAMP);
+        registerFunctionId(Tokens.T_CURRENT_CATALOG, FUNC_CURRENT_CATALOG);
+        /*
+        registerFunctionId(Token.T_CURRENT_DEFAULT_TRANSFORM_GROUP,
+                FUNC_CURRENT_DEFAULT_TRANSFORM_GROUP);
+        */
+        registerFunctionId(Tokens.T_CURRENT_PATH, FUNC_CURRENT_PATH);
+        registerFunctionId(Tokens.T_CURRENT_ROLE, FUNC_CURRENT_ROLE);
+        registerFunctionId(Tokens.T_CURRENT_SCHEMA, FUNC_CURRENT_SCHEMA);
+        /*
+        registerFunctionId(Token.T_CURRENT_TRANSFORM_GROUP_FOR_TYPE,
+                FUNC_CURRENT_TRANSFORM_GROUP_FOR_TYPE);
+        */
+        registerFunctionId(Tokens.T_CURRENT_USER, FUNC_CURRENT_USER);
+        registerFunctionId(Tokens.T_SESSION_USER, FUNC_SESSION_USER);
+        registerFunctionId(Tokens.T_SYSTEM_USER, FUNC_SYSTEM_USER);
+        registerFunctionId(Tokens.T_USER, FUNC_USER);
+        registerFunctionId(Tokens.T_VALUE, FUNC_VALUE);
     }
 
     //
@@ -1584,8 +1697,8 @@ public class FunctionSQL extends Expression {
                 // This leaves the first string argument null to be replaced
                 // with the default value ' '.
                 if (nodes[2] == null) {
-                	nodes[2] = nodes[1];
-                	nodes[1] = null;
+                    nodes[2] = nodes[1];
+                    nodes[1] = null;
                 }
 
                 // End of VoltDB extension
@@ -2122,9 +2235,9 @@ public class FunctionSQL extends Expression {
         sb.append(name).append("(");
 
         for (int i = 0; i < nodes.length; i++) {
-        	if (nodes[i] != null) {
+            if (nodes[i] != null) {
                 sb.append("[").append(nodes[i].describe(session)).append("]");
-        	}
+            }
         }
 
         sb.append(") returns ").append(dataType.getNameString());
@@ -2150,6 +2263,7 @@ public class FunctionSQL extends Expression {
 
     // Assume that 10000-19999 are available for VoltDB-specific use
     // in specialized implementations of existing HSQL functions.
+    // Note that these must match similar definitions in FunctionForVolt.java.
     private final static int   FUNC_VOLT_SUBSTRING_CHAR_FROM = 10000;
 
     /**
@@ -2185,8 +2299,8 @@ public class FunctionSQL extends Expression {
             return exp;
 
             // A little tweaking is needed in some other cases because VoltDB
-        	// wants to define separate functions for each leading keyword
-        	// argument, eliminating the hard-coded node[0] value.
+            // wants to define separate functions for each leading keyword
+            // argument, eliminating the hard-coded node[0] value.
 
         case FUNC_TRIM_CHAR :
             implied_argument = null;

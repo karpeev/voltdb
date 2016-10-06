@@ -17,6 +17,9 @@
 
 package org.voltdb.expressions;
 
+import java.util.HashSet;
+
+import org.hsqldb_voltpatches.FunctionForVoltDB;
 import org.json_voltpatches.JSONException;
 import org.json_voltpatches.JSONObject;
 import org.json_voltpatches.JSONStringer;
@@ -33,6 +36,8 @@ public class FunctionExpression extends AbstractExpression {
     }
 
     private final static int NOT_PARAMETERIZED = -1;
+
+    private static final java.util.Set<Integer> m_safeFunctionIds = new HashSet<>();
 
     /// The name of the actual generic SQL function being invoked,
     /// normally this is just the upper-case formatted version of the function
@@ -375,6 +380,13 @@ public class FunctionExpression extends AbstractExpression {
             return false;
         }
         return true;
+    }
+
+    public void isNonemptyMVSafeFunction(UnsafeMVOperators ops) {
+        if ( ! FunctionForVoltDB.isSafeForNonemptyMV(m_functionId)) {
+            String opString = FunctionForVoltDB.getOpstring(m_functionId);
+            ops.add(opString);
+        }
     }
 
 }

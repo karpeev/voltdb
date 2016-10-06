@@ -104,7 +104,7 @@ public class FunctionCustom extends FunctionSQL {
     private static final int FUNC_COT              = 106;
     private static final int FUNC_DEGREES          = 107;
     private static final int FUNC_LOG10            = 110;
-    private static final int FUNC_PI               = 111;
+    protected static final int FUNC_PI             = 111;
     private static final int FUNC_RADIANS          = 112;
     private static final int FUNC_RAND             = 113;
     private static final int FUNC_ROUND            = 114;
@@ -232,6 +232,27 @@ public class FunctionCustom extends FunctionSQL {
         customRegularFuncMap.put(Tokens.DATEDIFF, FUNC_DATEDIFF);
         customRegularFuncMap.put(Tokens.CSC, FUNC_CSC);
         customRegularFuncMap.put(Tokens.SEC, FUNC_SEC);
+        // Map function ids to function names.  The order
+        // of the parameters is not obvious.  These values
+        // were taken from the constructor for FunctionCustom.
+        // They register all function ids for which a name
+        // is set.
+        registerFunctionId(Tokens.T_EXTRACT, FUNC_EXTRACT);
+        registerFunctionId(Tokens.T_TRIM, FUNC_TRIM_CHAR);
+        registerFunctionId(Tokens.T_OVERLAY, FUNC_OVERLAY_CHAR);
+        registerFunctionId(Tokens.T_IDENTITY, FUNC_IDENTITY);
+        registerFunctionId(Tokens.T_SYSDATE, FUNC_SYSDATE);
+        registerFunctionId(Tokens.T_TIMESTAMPADD, FUNC_TIMESTAMPADD);
+        registerFunctionId(Tokens.T_TIMESTAMPDIFF, FUNC_TIMESTAMPDIFF);
+        registerFunctionId(Tokens.T_TIMESTAMP, FUNC_TIMESTAMP);
+        registerFunctionId(Tokens.T_PI, FUNC_PI, true);
+        registerFunctionId(Tokens.T_SIN, FUNC_SIN);
+        registerFunctionId(Tokens.T_COS, FUNC_COS);
+        registerFunctionId(Tokens.T_TAN, FUNC_TAN);
+        registerFunctionId(Tokens.T_COT, FUNC_COT);
+        registerFunctionId(Tokens.T_SEC, FUNC_SEC);
+        registerFunctionId(Tokens.T_CSC, FUNC_CSC);
+        registerFunctionId(Tokens.T_LOG10, FUNC_LOG10);
     }
 
     static final IntKeyIntValueHashMap customValueFuncMap =

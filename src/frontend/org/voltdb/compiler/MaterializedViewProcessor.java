@@ -459,6 +459,7 @@ public class MaterializedViewProcessor {
      * @param stmt The output from the parser describing the select statement that creates the view.
      * @throws VoltCompilerException
      */
+
     private void checkViewMeetsSpec(String viewName, ParsedSelectStmt stmt) throws VoltCompilerException {
         int groupColCount = stmt.m_groupByColumns.size();
         int displayColCount = stmt.m_displayColumns.size();
@@ -466,8 +467,9 @@ public class MaterializedViewProcessor {
         msg.append("Materialized view \"" + viewName + "\" ");
 
         List <AbstractExpression> checkExpressions = new ArrayList<>();
-
+        UnsafeMVOperators unsafeOps = new UnsafeMVOperators();
         int i;
+        boolean isUnsafeForNonemptyMVTables = false;
         // First, check the group by columns.  They are at
         // the beginning of the display list.
         for (i = 0; i < groupColCount; i++) {
@@ -484,6 +486,12 @@ public class MaterializedViewProcessor {
                 msg.append("with " + exprMsg + " in GROUP BY clause not supported.");
                 throw m_compiler.new VoltCompilerException(msg.toString());
             }
+            // Check to see if the expression is safe for creating
+            // views on nonempty tables.
+            if (!outcol.expression.isNonemptyMVSafe(unsafeOps)) {
+                isUnsafeForNonemptyMVTables = false;
+            }
+
             // collect all the expressions and we will check
             // for other gaurds on all of them together
             checkExpressions.add(outcol.expression);
